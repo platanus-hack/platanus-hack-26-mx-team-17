@@ -1,10 +1,11 @@
-STATUS: DRAFT — debe congelarse antes de comenzar implementación dependiente.
+STATUS: FROZEN FOR MVP
 
 # Contrato — Acceso a datos desde la app móvil
 
 Firmas **conceptuales** de los servicios/repositorios que la app usa. Los componentes visuales **no** llaman a Supabase directamente: todo pasa por estos servicios. Tipos en `apps/mobile/src/types/`. Propiedad de las firmas: Persona 2 (datos), Persona 1 (tracking), Persona 4 (vision matching). Cambios vía `/contract-change`.
 
 Convenciones de error (todas las funciones pueden devolver):
+
 - `UNAUTHENTICATED` — se requiere sesión.
 - `FORBIDDEN` — RLS niega la operación.
 - `NOT_FOUND` — recurso inexistente.

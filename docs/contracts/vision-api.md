@@ -1,4 +1,4 @@
-STATUS: DRAFT — debe congelarse antes de comenzar implementación dependiente.
+STATUS: FROZEN FOR MVP
 
 # Contrato — Vision API (FastAPI / DINOv2)
 
@@ -19,6 +19,7 @@ Base URL: variable pública `EXPO_PUBLIC_VISION_API_URL`. Nunca usar `localhost`
 Sin autenticación. Para readiness y warm-up (mitiga cold start).
 
 **Response 200:**
+
 ```json
 {
   "status": "ok",
@@ -38,15 +39,18 @@ Procesa el reporte `report_id` (debe tener imagen primaria) y devuelve hasta 3 c
 **Headers:** `Authorization: Bearer <supabase_jwt>`
 
 **Request body (opcional):**
+
 ```json
 {
   "force": false
 }
 ```
+
 - `force=false` (default): si ya hay matches recientes, los devuelve sin recomputar (idempotencia).
 - `force=true`: recomputa; los matches existentes se actualizan, no se duplican.
 
 **Response 200:**
+
 ```json
 {
   "report_id": "uuid",
@@ -67,6 +71,7 @@ Procesa el reporte `report_id` (debe tener imagen primaria) y devuelve hasta 3 c
   ]
 }
 ```
+
 - `matches` ordenado por `rank` (1..3). Lista vacía si no hay candidatos.
 - `compatibility` es **0–100** (compatibilidad visual, **no** probabilidad de identidad).
 
@@ -82,6 +87,7 @@ Procesa el reporte `report_id` (debe tener imagen primaria) y devuelve hasta 3 c
 | 504 | `timeout` | excedió el tiempo de procesamiento |
 
 Formato de error:
+
 ```json
 { "error": { "code": "report_not_found", "message": "..." } }
 ```

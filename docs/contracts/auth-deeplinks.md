@@ -1,4 +1,4 @@
-STATUS: DRAFT — debe congelarse antes de comenzar implementación dependiente.
+STATUS: FROZEN FOR MVP
 
 # Contrato — Autenticación y deep links
 

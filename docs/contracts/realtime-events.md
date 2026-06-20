@@ -1,4 +1,4 @@
-STATUS: DRAFT — debe congelarse antes de comenzar implementación dependiente.
+STATUS: FROZEN FOR MVP
 
 # Contrato — Eventos Realtime (Supabase Realtime)
 
@@ -7,6 +7,7 @@ Suscripciones en vivo que la app móvil consume vía los servicios de `mobile-da
 Regla clave: **`tracking_points` NO se usa como fuente continua de actualización visual.** La posición en vivo del rescatista se sigue por `tracking_sessions` (`last_lat`, `last_lng`, `last_point_at`). `tracking_points` es historial, no stream de UI.
 
 Convenciones:
+
 - Canal por entidad/caso; las suscripciones respetan RLS (sólo llega lo que el usuario puede ver).
 - `op` ∈ `INSERT` · `UPDATE` · `DELETE`.
 
@@ -67,11 +68,11 @@ Convenciones:
 
 ## Tabla resumen
 
-| Entidad | Tabla | Eventos | Filtro | UI continua |
-|---|---|---|---|---|
-| reports | reports | INSERT/UPDATE | público / bbox | sí |
-| report_updates | report_updates | INSERT | report_id | sí |
-| matches | matches | INSERT/UPDATE | source_report_id | sí |
-| messages | messages | INSERT | report_id | sí |
-| tracking_sessions | tracking_sessions | INSERT/UPDATE | report_id | sí |
-| tracking_points | tracking_points | — | — | **NO** (sólo historial) |
+| Entidad           | Tabla             | Eventos       | Filtro           | UI continua             |
+| ----------------- | ----------------- | ------------- | ---------------- | ----------------------- |
+| reports           | reports           | INSERT/UPDATE | público / bbox   | sí                      |
+| report_updates    | report_updates    | INSERT        | report_id        | sí                      |
+| matches           | matches           | INSERT/UPDATE | source_report_id | sí                      |
+| messages          | messages          | INSERT        | report_id        | sí                      |
+| tracking_sessions | tracking_sessions | INSERT/UPDATE | report_id        | sí                      |
+| tracking_points   | tracking_points   | —             | —                | **NO** (sólo historial) |
