@@ -2,8 +2,10 @@
   "permissions": {
     "deny": [
       "Read(./.env)",
-      "Read(./.env.*)",
+      "Read(./.env.local)",
       "Read(./apps/mobile/.env)",
+      "Read(./apps/mobile/.env.local)",
+      "Read(./services/vision-api/.env.local)",
       "Read(./services/vision-api/.env)",
       "Read(./secrets/**)",
       "Read(./credentials/**)"
