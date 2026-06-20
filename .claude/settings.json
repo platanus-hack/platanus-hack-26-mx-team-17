@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./apps/mobile/.env)",
+      "Read(./services/vision-api/.env)",
+      "Read(./secrets/**)",
+      "Read(./credentials/**)"
+    ]
+  }
+}

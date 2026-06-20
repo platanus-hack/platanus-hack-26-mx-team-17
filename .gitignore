@@ -1,0 +1,42 @@
+# Claude Code local configuration
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Allowlist: estos SÍ deben versionarse (contexto compartido del equipo)
+!.claude/skills/
+!.claude/settings.json
+!CLAUDE.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Secrets
+secrets/
+credentials/
+*.pem
+*.key
+google-services.json
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+build/
+web-build/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# OS and editors
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
