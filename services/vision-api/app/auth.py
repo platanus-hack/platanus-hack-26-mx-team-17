@@ -60,8 +60,14 @@ def authenticate(request: Request, settings: Settings) -> AuthenticatedUser:
                 algorithms=["HS256"],
                 audience="authenticated",
             )
+        except jwt.ExpiredSignatureError as exc:
+            raise unauthenticated("JWT expirado — cierra sesión y vuelve a entrar") from exc
+        except jwt.InvalidAudienceError as exc:
+            raise unauthenticated("JWT audience incorrecto (esperado: authenticated)") from exc
+        except jwt.InvalidSignatureError as exc:
+            raise unauthenticated("JWT firma incorrecta — VISION_SUPABASE_JWT_SECRET no coincide con Supabase") from exc
         except jwt.PyJWTError as exc:
-            raise unauthenticated("JWT invalido o expirado") from exc
+            raise unauthenticated(f"JWT invalido: {type(exc).__name__}") from exc
 
     user_id = claims.get("sub")
     if not user_id:
