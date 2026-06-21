@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_jwt_secret: str = ""
 
+    # Storage (bucket de imágenes de reportes). Convención de objeto:
+    # {report_id}/{filename} dentro del bucket.
+    storage_bucket: str = "report-images"
+
+    # Máximo de candidatos a considerar por procesamiento (cota de costo).
+    candidate_limit: int = 50
+
+    # Timeout de las llamadas HTTP a Supabase (REST/Storage).
+    supabase_http_timeout_s: float = 20.0
+
     # Si es True, omite la verificación de firma del JWT (SOLO desarrollo/test).
     # En producción debe ser False y exigir supabase_jwt_secret.
     auth_disabled: bool = False

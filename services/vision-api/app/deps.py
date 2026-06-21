@@ -19,7 +19,13 @@ from .repository import FakeRepository, Repository, SupabaseRepository
 def _build_repository() -> Repository:
     settings = get_settings()
     if settings.repo == "supabase":
-        return SupabaseRepository(settings.supabase_url, settings.supabase_service_role_key)
+        return SupabaseRepository(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
+            bucket=settings.storage_bucket,
+            candidate_limit=settings.candidate_limit,
+            timeout_s=settings.supabase_http_timeout_s,
+        )
     return FakeRepository()
 
 
