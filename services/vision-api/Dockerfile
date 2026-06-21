@@ -25,5 +25,6 @@ RUN python -c "from transformers import AutoImageProcessor, AutoModel; AutoImage
 
 EXPOSE 8000
 
-# Railway inyecta $PORT; fallback 8000 en local. Shell form para expandir la var.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Railway inyecta $PORT; fallback 8000 en local. `exec` reenvía SIGTERM a uvicorn
+# (apagado limpio); forma JSON para expandir $PORT vía sh -c.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
