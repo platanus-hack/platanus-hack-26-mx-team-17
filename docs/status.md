@@ -2,11 +2,11 @@
 
 ## Última actualización
 
-2026-06-21 — Vision API (Rol 3) implementada, desplegada en Railway y verificada (rama `feature/vision-api`).
+2026-06-21 — Integración: app móvil inicializada con navegación + formulario (Rol 4), Vision API desplegada en Railway (Rol 3) y migraciones Supabase listas (Rol 2). Pipeline de build EAS (dev client + APK) configurado.
 
 ## Build estable
 
-Ninguno. No existe APK todavía.
+Ninguno aún. Pipeline EAS configurado (`apps/mobile/eas.json`, perfiles development/preview/production en APK); primer development build en proceso. No existe APK final.
 
 ## Funcionando
 
@@ -14,8 +14,14 @@ Ninguno. No existe APK todavía.
 - Documentos de roles creados (`docs/roles/01..04`).
 - Skills creadas: `/start-task`, `/handoff`, `/contract-change`, `/release-check`.
 - `docs/architecture.md`, `docs/decisions.md`, `docs/qa-checklist.md` y `docs/demo-script.md` creados.
-- Los cinco contratos en `docs/contracts/` existen (FROZEN FOR MVP).
-- **`supabase/migrations/` creado** — tres migraciones reproducibles:
+- Los cinco contratos en `docs/contracts/` existen y están `FROZEN FOR MVP`.
+- **App móvil inicializada** (`apps/mobile`): Expo SDK 56 + Expo Router + TypeScript estricto. `tsc --noEmit` pasa; `expo export` (bundle Android) compila; `expo-doctor` 21/21.
+- **Navegación base** (Rol 4): Stack raíz, home placeholder (lista de reportes), `report/new` (formulario), `report/[id]` (stub de detalle), `map-demo` (ruta TEMPORAL para verificación de Mapbox del Rol 1).
+- **Formulario de reporte (UI mock)**: tipo/título/descripción/especie/atributos, ubicación de solo lectura (sin elegir/editar/arrastrar), placeholder de imagen. Estados vacío/validación/enviando/éxito/error.
+- **Desacople por contrato**: tipos en `src/types/` y `reportService` (mock) calcados de `mobile-data-access.md`; la UI no toca Supabase directamente.
+- **Pipeline de build (Rol 4)**: `eas.json` con perfiles APK, `app.config.ts` con scheme `huellasos`, `android.package = mx.huellasos.app`, `extra.eas.projectId` fijo y variables públicas declaradas. `expo-dev-client` agregado (QR + fast refresh sin Expo Go).
+- `.npmrc` con `legacy-peer-deps=true` (React 19 vs peers de expo-router web).
+- **`supabase/migrations/` creado** (Rol 2) — tres migraciones reproducibles:
   - `000001_initial_schema.sql` — 10 tablas, 4 enums, índices, constraints.
   - `000002_rls_policies.sql` — RLS habilitado en todas las tablas + políticas Storage.
   - `000003_triggers.sql` — trigger de perfil automático + trigger de owner en case_members.
@@ -24,14 +30,14 @@ Ninguno. No existe APK todavía.
 
 ## En desarrollo
 
-- `feat/auth-chat-supabase`: cliente Supabase JS + tipos TypeScript + servicio auth (pendiente de Expo init).
-- `feat/mapbox-gps`: mapa base (pendiente de Expo init).
+- Conexión de servicios reales detrás de `reportService` (Supabase — Rol 2), captura GPS real y mapa (Rol 1) y carga de imagen (Rol 4).
+- `feat/auth-chat-supabase`: cliente Supabase JS + tipos TypeScript + servicio auth.
+- Mapbox: integración del `<MapView>` real (Rol 1) requiere instalar `@rnmapbox/maps`, config plugin en `app.config.ts` (token secreto vía EAS secret) y un nuevo development build.
 
 ## Bloqueos
 
-- `apps/mobile/` no inicializado — ninguna rama ha corrido `create-expo-app` todavía.
-- Credenciales externas pendientes (Supabase project URL + anon key, Mapbox tokens, Google OAuth, SMS).
-- Supabase project en la nube sin crear (migraciones listas para aplicar con `supabase db push`).
+- Credenciales externas pendientes (Supabase project URL + anon key, Mapbox tokens, Google OAuth, proveedor SMS).
+- **Node ≥20.19.4 requerido por SDK 56**: el equipo usa **Node 22.22.2** (`nvm use 22.22.2`); con esa versión `expo-doctor` pasa y EAS build corre sin avisos.
 
 ## Servicios desplegados
 
@@ -41,18 +47,20 @@ Ninguno. No existe APK todavía.
   - Validación de JWT de Supabase; escribe `matches`/`report_updates` vía service role.
   - Verificado end-to-end contra Supabase hosted; calidad de match top-1/top-3 = 100%.
   - Handoff a Rol 4: `services/vision-api/docs/handoff.md`.
-- Supabase: esquema/RLS/triggers en rama `feat/auth-chat-supabase` (Rol 2).
-- App móvil: aún no inicializada.
+- Supabase: esquema/RLS/triggers listos en migraciones; proyecto en la nube pendiente de crear y aplicar (`supabase db push`).
+- App móvil: inicializada; APK pendiente del primer build EAS.
 
 ## Integraciones pendientes
 
-- Aplicación móvil no inicializada (Expo).
+- Conectar `reportService` mock a Supabase real (Rol 2) detrás de la interfaz existente.
+- Conectar captura GPS real (`getCurrentReportLocation()`) y mapa en la home (Rol 1).
 - Conectar el cliente móvil a la Vision API (`EXPO_PUBLIC_VISION_API_URL`).
-- Mergear `feat/auth-chat-supabase` y `feature/vision-api` a `main`.
-- APK inexistente.
+- Conectar captura de imagen (`expo-image-picker`) en el formulario (Rol 4).
+- Generar el APK final tras `/release-check`.
 
 ## Próximo checkpoint
 
-- Crear proyecto Supabase en la nube y aplicar las tres migraciones.
-- Inicializar `apps/mobile/` con Expo (cualquier rama que lo haga primero).
-- Persona 2: implementar `supabase.ts`, `database.ts` y `auth.service.ts` tras el init.
+- Crear proyecto Supabase en la nube y aplicar las tres migraciones (`supabase db push`).
+- Rol 2: implementar `supabase.ts`, `database.ts`, `auth.service.ts` e implementación real de `reportService` detrás de la interfaz.
+- Rol 1: verificar `map-demo` en el dev build, luego integrar Mapbox + `getCurrentReportLocation()` (requiere rebuild con el nativo).
+- Rol 4: distribuir el dev client APK al equipo, conectar `expo-image-picker` y preparar el APK de demo tras `/release-check`.
