@@ -1,26 +1,29 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '../src/components/ui/Button';
-import { ScreenContainer } from '../src/components/ui/ScreenContainer';
 import { StatusBanner } from '../src/components/ui/StatusBanner';
-import { ReportCard } from '../src/features/reports/components/ReportCard';
+import { MapView, type MapMarker } from '../src/features/map/MapView';
 import { reportService } from '../src/features/reports/reportService';
-import { colors, fontSize, fontWeight, spacing } from '../src/theme/tokens';
+import { colors, reportTypeColors, spacing } from '../src/theme/tokens';
 import type { Report } from '../src/types/report';
 
 type LoadState = 'loading' | 'success' | 'error';
 
 /**
- * Home PLACEHOLDER (lista de reportes públicos mock).
+ * Home (Rol 1): mapa de Mapbox con los reportes públicos como marcadores.
  *
- * El mapa real es responsabilidad de Rol 1; esta lista es temporal para
- * navegar y probar el flujo de reportes sin backend. Datos vía `reportService`
- * (mock hoy, Supabase después).
+ * Conserva el flujo de reportes de Rol 4: tocar un marcador abre el detalle y
+ * el botón inferior lleva al formulario de creación. Datos vía `reportService`
+ * (mock hoy, Supabase después) — la UI no cambia al conectar el backend.
+ *
+ * Requiere development build (Mapbox es nativo): NO funciona en Expo Go.
  */
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [reports, setReports] = useState<Report[]>([]);
   const [state, setState] = useState<LoadState>('loading');
 
@@ -39,59 +42,63 @@ export default function HomeScreen() {
     void load();
   }, [load]);
 
+  const markers = useMemo<MapMarker[]>(
+    () =>
+      reports.map((report) => ({
+        id: report.id,
+        coordinate: [report.location.lng, report.location.lat],
+        color: reportTypeColors[report.type],
+        label: report.title,
+        onPress: () => router.push(`/report/${report.id}`),
+      })),
+    [reports, router],
+  );
+
   return (
-    <ScreenContainer>
-      <View style={styles.intro}>
-        <Text style={styles.heading}>Reportes públicos</Text>
-        <Text style={styles.subheading}>
-          Vista temporal de lista. El mapa lo integra Rol 1.
-        </Text>
+    <View style={styles.container}>
+      <MapView markers={markers} followUser />
+
+      <View style={[styles.topOverlay, { top: insets.top + spacing.md }]}>
+        {state === 'loading' ? (
+          <View style={styles.badge}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : null}
+        {state === 'error' ? (
+          <StatusBanner tone="error" message="No se pudieron cargar los reportes." />
+        ) : null}
+        {state === 'success' && reports.length === 0 ? (
+          <StatusBanner tone="info" message="Aún no hay reportes públicos." />
+        ) : null}
       </View>
 
-      <Button label="Reportar un animal" onPress={() => router.push('/report/new')} />
-
-      {state === 'loading' ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : null}
-
-      {state === 'error' ? (
-        <StatusBanner tone="error" message="No se pudieron cargar los reportes." />
-      ) : null}
-
-      {state === 'success' && reports.length === 0 ? (
-        <StatusBanner tone="info" message="Aún no hay reportes públicos." />
-      ) : null}
-
-      {state === 'success'
-        ? reports.map((report) => (
-            <ReportCard
-              key={report.id}
-              report={report}
-              onPress={(r) => router.push(`/report/${r.id}`)}
-            />
-          ))
-        : null}
-    </ScreenContainer>
+      <View style={[styles.actions, { paddingBottom: insets.bottom + spacing.lg }]}>
+        <Button label="Reportar un animal" onPress={() => router.push('/report/new')} />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  intro: {
-    gap: spacing.xs,
+  container: {
+    flex: 1,
   },
-  heading: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
+  topOverlay: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    gap: spacing.sm,
   },
-  subheading: {
-    fontSize: fontSize.sm,
-    color: colors.textMuted,
+  badge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    borderRadius: spacing.sm,
+    padding: spacing.sm,
   },
-  center: {
-    paddingVertical: spacing.xxl,
-    alignItems: 'center',
+  actions: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: 0,
   },
 });

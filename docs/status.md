@@ -2,7 +2,7 @@
 
 ## Última actualización
 
-2026-06-21 — Integración: app móvil inicializada con navegación + formulario (Rol 4), Vision API desplegada en Railway (Rol 3) y migraciones Supabase listas (Rol 2). Pipeline de build EAS (dev client + APK) configurado.
+2026-06-21 — Rol 1: Mapbox + geolocalización + tracking GPS implementados en `feat/mapbox-gps` (mapa con marcadores, `getCurrentReportLocation()`, sesiones de rescate con foreground service y Realtime). Pendiente: nuevo development build para verificar en dispositivo. Previo: app móvil con navegación + formulario (Rol 4), Vision API en Railway (Rol 3), migraciones Supabase (Rol 2), pipeline EAS.
 
 ## Build estable
 
@@ -27,6 +27,12 @@ Ninguno aún. Pipeline EAS configurado (`apps/mobile/eas.json`, perfiles develop
   - `000003_triggers.sql` — trigger de perfil automático + trigger de owner en case_members.
 - `supabase/seed.sql` — bucket `report-images` + org de demo.
 - `supabase/config.toml` — config CLI de Supabase (deep link `huellasos://auth/callback`).
+- **Mapbox + geolocalización + tracking (Rol 1)** en `feat/mapbox-gps` (`tsc --noEmit` pasa, `expo config` valida plugins):
+  - `@rnmapbox/maps` + plugin nativo (token de descarga vía `RNMAPBOX_MAPS_DOWNLOAD_TOKEN`, secreto, sólo en build).
+  - `src/features/map/`: `MapView` (punto del usuario, marcadores, centrado de cámara), `getCurrentReportLocation()` con validación de precisión/antigüedad y códigos de error del contrato.
+  - Home (`app/index.tsx`) muestra reportes como marcadores; tap → detalle. Formulario (`app/report/new.tsx`) usa GPS real (reemplaza el mock).
+  - `src/features/tracking/`: `startTracking/pauseTracking/resumeTracking/stopTracking/subscribeToTracking` sobre `tracking_sessions` + Realtime; tarea de fondo (`expo-task-manager`) con foreground service que persiste `tracking_points` y `last_*`. Pantalla `app/report/[id]/tracking.tsx`.
+  - **Coordinación:** `src/lib/supabase.ts` (cliente compartido) lo creó Rol 1 por necesidad del tracking; **Rol 2 debe adoptarlo** (no duplicar cliente). Permisos background/foreground service agregados a `app.config.ts`.
 
 ## En desarrollo
 

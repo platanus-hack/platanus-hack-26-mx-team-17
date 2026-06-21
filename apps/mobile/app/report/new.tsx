@@ -11,7 +11,7 @@ import { StatusBanner } from '../../src/components/ui/StatusBanner';
 import { TextField } from '../../src/components/ui/TextField';
 import { LocationCard } from '../../src/features/reports/components/LocationCard';
 import { reportTypeOptions } from '../../src/features/reports/labels';
-import { getMockCurrentLocation } from '../../src/features/reports/mockLocation';
+import { getCurrentReportLocation, LocationError } from '../../src/features/map/location';
 import { useCreateReportForm } from '../../src/features/reports/useCreateReportForm';
 import { colors, fontSize, spacing } from '../../src/theme/tokens';
 import type { ReportLocation } from '../../src/types/report';
@@ -28,10 +28,26 @@ export default function NewReportScreen() {
   const router = useRouter();
   const { fields, errors, status, submitError, setField, submit } = useCreateReportForm();
 
-  // Placeholder de captura GPS: en mock se obtiene al montar la pantalla.
+  // Captura GPS real (Rol 1): SÓLO ubicación actual, no editable.
   const [location, setLocation] = useState<ReportLocation | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   useEffect(() => {
-    setLocation(getMockCurrentLocation());
+    let active = true;
+    getCurrentReportLocation()
+      .then((loc) => {
+        if (active) setLocation(loc);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setLocationError(
+          error instanceof LocationError
+            ? error.message
+            : 'No se pudo obtener la ubicación actual.',
+        );
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleSubmit = async () => {
@@ -111,6 +127,7 @@ export default function NewReportScreen() {
 
       <LocationCard location={location} />
 
+      {locationError ? <StatusBanner tone="error" message={locationError} /> : null}
       {errors.location ? <StatusBanner tone="error" message={errors.location} /> : null}
       {status === 'error' && submitError ? (
         <StatusBanner tone="error" message={submitError} />
