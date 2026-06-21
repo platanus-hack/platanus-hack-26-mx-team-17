@@ -9,10 +9,13 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from .config import get_settings
+from .errors import VisionError
 from .model import get_model, init_model
+from .routes import router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vision-api")
@@ -30,6 +33,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Huella SOS — Vision API", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(VisionError)
+async def vision_error_handler(request: Request, exc: VisionError) -> JSONResponse:
+    """Serializa errores de dominio como {"error": {"code", "message"}}."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": exc.code, "message": exc.message}},
+    )
+
+
+app.include_router(router)
 
 
 @app.get("/health")

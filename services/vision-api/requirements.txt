@@ -9,6 +9,11 @@ pydantic-settings==2.7.1
 torch==2.5.1
 transformers==4.47.1
 pillow==11.0.0
+numpy==2.4.6
+
+# Auth (validación de JWT de Supabase) y HTTP (descarga de imágenes)
+PyJWT==2.10.1
+httpx==0.28.1
 
 # NOTA sobre torch:
 #  - Local (Windows + RTX 3050): para usar la GPU instala la build CUDA:

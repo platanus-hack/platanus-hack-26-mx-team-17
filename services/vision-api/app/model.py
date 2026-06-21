@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 import torch
+from PIL import Image
 from transformers import AutoImageProcessor, AutoModel
 
 from .config import Settings
@@ -87,6 +89,26 @@ class VisionModel:
 
         if self._settings.warmup_on_startup:
             self._warmup()
+
+    def embed_image(self, image: Image.Image) -> np.ndarray:
+        """Genera el embedding DINOv2 **normalizado** (L2) de una imagen PIL.
+
+        Devuelve un vector float32 1-D. El modelo debe estar cargado.
+        """
+        if not self._loaded or self._model is None or self._processor is None:
+            raise RuntimeError("El modelo no esta cargado.")
+
+        inputs = self._processor(images=image, return_tensors="pt").to(self._device)
+        with torch.inference_mode():
+            outputs = self._model(**inputs)
+        # pooler_output: representación del token CLS tras layernorm (B, hidden).
+        embedding = outputs.pooler_output[0]
+        vector = embedding.detach().to("cpu", dtype=torch.float32).numpy()
+
+        norm = np.linalg.norm(vector)
+        if norm > 0:
+            vector = vector / norm
+        return vector.astype(np.float32)
 
     def _warmup(self) -> None:
         """Forward pass con una entrada dummy para pagar el cold start ahora."""

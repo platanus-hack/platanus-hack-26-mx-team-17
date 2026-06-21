@@ -1,0 +1,4 @@
+# Dependencias sólo de desarrollo/test (NO necesarias en la imagen de Railway).
+-r requirements.txt
+
+pytest==8.3.4
