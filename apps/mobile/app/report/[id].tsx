@@ -8,25 +8,37 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { Badge } from '../../src/components/ui/Badge';
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
+import { IconBadge } from '../../src/components/ui/IconBadge';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { StatusBanner } from '../../src/components/ui/StatusBanner';
 import { LocationCard } from '../../src/features/reports/components/LocationCard';
 import {
   reportStatusLabels,
   reportTypeColor,
+  reportTypeIcon,
   reportTypeLabels,
 } from '../../src/features/reports/labels';
 import { realtimeService, reportService, storageService } from '../../src/features/reports/reportService';
 import { MatchError, matchService } from '../../src/features/matches/matchService';
+import { focusStore } from '../../src/features/map/focusStore';
 import { authService } from '../../src/features/auth/authService';
 import type { ReportUpdate } from '../../src/types/reportUpdate';
-import { colors, fontSize, fontWeight, radius, spacing } from '../../src/theme/tokens';
+import {
+  colors,
+  fontSize,
+  fontWeight,
+  letterSpacing,
+  radius,
+  shadow,
+  spacing,
+  withAlpha,
+} from '../../src/theme/tokens';
 import type { Report, ReportStatus } from '../../src/types/report';
 import type { Match } from '../../src/types/match';
 
@@ -49,7 +61,9 @@ export default function ReportDetailScreen() {
   const [report, setReport] = useState<Report | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [matchImages, setMatchImages] = useState<Record<string, string>>({});
   const [updates, setUpdates] = useState<ReportUpdate[]>([]);
   const [processing, setProcessing] = useState(false);
   const [processError, setProcessError] = useState<string | null>(null);
@@ -61,7 +75,6 @@ export default function ReportDetailScreen() {
   const checkProximity = useCallback((reportLat: number, reportLng: number) => {
     Location.requestForegroundPermissionsAsync().then(async ({ status }) => {
       if (status !== 'granted') return;
-
       const checkPos = (pos: Location.LocationObject) => {
         const dist = haversineM(
           pos.coords.latitude, pos.coords.longitude,
@@ -70,15 +83,9 @@ export default function ReportDetailScreen() {
         setDistanceM(Math.round(dist));
         setIsNearReport(dist <= 500);
       };
-
-      // Posición cacheada primero (instantánea, sin esperar GPS fix)
       const last = await Location.getLastKnownPositionAsync({ maxAge: 60000 });
       if (last) checkPos(last);
-
-      // Luego refina con posición fresca en baja precisión
-      const fresh = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Low,
-      });
+      const fresh = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
       checkPos(fresh);
     }).catch(() => null);
   }, []);
@@ -90,41 +97,33 @@ export default function ReportDetailScreen() {
       setReport(data);
       setState('success');
 
-      // Corre en paralelo: autor + proximidad
       authService.getCurrentUser().then((user) => {
         setIsAuthor(user?.id === data.authorId);
       }).catch(() => null);
 
       checkProximity(data.location.lat, data.location.lng);
 
-      // Carga imagen primaria (best-effort, no bloquea)
       storageService.getPrimaryImage(id).then(async (img) => {
         if (!img) return;
         const url = await storageService.getReportImageUrl(img.storagePath).catch(() => null);
         if (url) setImageUrl(url);
       }).catch(() => null);
 
-      // Carga matches existentes (best-effort)
       matchService.getMatches(id).then(setMatches).catch(() => null);
-      // Carga actualizaciones del caso (best-effort)
       realtimeService.getReportUpdates(id).then(setUpdates).catch(() => null);
     } catch {
       setState('error');
     }
   }, [id, checkProximity]);
 
-  useEffect(() => {
-    void loadReport();
-  }, [loadReport]);
+  useEffect(() => { void loadReport(); }, [loadReport]);
 
-  // Suscripción a actualizaciones del caso (timeline)
   useEffect(() => {
     return realtimeService.subscribeToReportUpdates(id, (update) => {
       setUpdates((prev) => [...prev, update]);
     });
   }, [id]);
 
-  // Suscripción a nuevos matches via Realtime
   useEffect(() => {
     return matchService.subscribeToMatches(id, (newMatch) => {
       setMatches((prev) => {
@@ -138,6 +137,18 @@ export default function ReportDetailScreen() {
       });
     });
   }, [id]);
+
+  useEffect(() => {
+    matches.forEach((m) => {
+      const cid = m.candidateReportId;
+      if (matchImages[cid]) return;
+      storageService.getPrimaryImage(cid).then(async (img) => {
+        if (!img) return;
+        const url = await storageService.getReportImageUrl(img.storagePath).catch(() => null);
+        if (url) setMatchImages((prev) => ({ ...prev, [cid]: url }));
+      }).catch(() => null);
+    });
+  }, [matches]);
 
   const handleStatusChange = (newStatus: ReportStatus, label: string) => {
     Alert.alert(
@@ -169,7 +180,6 @@ export default function ReportDetailScreen() {
     setProcessError(null);
     try {
       await matchService.requestReportProcessing(id);
-      // Los matches llegarán por Realtime; como fallback recargamos tras 5s
       setTimeout(() => {
         matchService.getMatches(id).then(setMatches).catch(() => null);
       }, 5000);
@@ -184,7 +194,7 @@ export default function ReportDetailScreen() {
     return (
       <ScreenContainer scroll={false}>
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={colors.primary} size="large" />
         </View>
       </ScreenContainer>
     );
@@ -198,22 +208,52 @@ export default function ReportDetailScreen() {
     );
   }
 
+  const accent = reportTypeColor[report.type];
+
   return (
     <ScreenContainer>
-      {/* Foto principal */}
-      {imageUrl ? (
-        <View style={styles.photoContainer}>
-          <Image source={{ uri: imageUrl }} style={styles.photo} resizeMode="contain" />
+      {/* Hero image — cover mode, 16:9, con placeholder de color */}
+      <View style={styles.photoContainer}>
+        {imageUrl ? (
+          <>
+            {!imageLoaded && (
+              <View style={styles.photoPlaceholder}>
+                <IconBadge icon={reportTypeIcon[report.type]} color={accent} size={56} />
+              </View>
+            )}
+            <Image
+              source={{ uri: imageUrl }}
+              style={[styles.photo, !imageLoaded && styles.photoHidden]}
+              resizeMode="cover"
+              onLoad={() => setImageLoaded(true)}
+            />
+          </>
+        ) : (
+          <View style={styles.photoPlaceholder}>
+            <IconBadge icon={reportTypeIcon[report.type]} color={accent} size={56} />
+            <Text style={styles.photoPlaceholderText}>Sin foto adjunta</Text>
+          </View>
+        )}
+        {/* Pill de tipo flotante sobre la imagen */}
+        <View style={[styles.typePillOverlay, { backgroundColor: withAlpha(accent, 0.92) }]}>
+          <Ionicons name={reportTypeIcon[report.type]} size={12} color="#fff" />
+          <Text style={styles.typePillText}>{reportTypeLabels[report.type].toUpperCase()}</Text>
         </View>
-      ) : null}
+      </View>
 
       {/* Encabezado */}
       <View style={styles.header}>
-        <Badge label={reportTypeLabels[report.type]} color={reportTypeColor[report.type]} />
-        <Text style={styles.status}>{reportStatusLabels[report.status]}</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>{report.title}</Text>
+        </View>
+        <View style={[styles.statusPill, { borderColor: withAlpha(accent, 0.3) }]}>
+          <View style={[styles.statusDot, { backgroundColor: accent }]} />
+          <Text style={[styles.status, { color: accent }]}>
+            {reportStatusLabels[report.status]}
+          </Text>
+        </View>
       </View>
 
-      <Text style={styles.title}>{report.title}</Text>
       {report.description ? (
         <Text style={styles.description}>{report.description}</Text>
       ) : null}
@@ -222,51 +262,114 @@ export default function ReportDetailScreen() {
       {report.species || report.attributes ? (
         <Card>
           <Text style={styles.sectionTitle}>Características</Text>
-          {report.species ? <Text style={styles.detail}>Especie: {report.species}</Text> : null}
+          {report.species ? (
+            <View style={styles.detailRow}>
+              <Ionicons name="paw-outline" size={14} color={colors.textMuted} />
+              <Text style={styles.detail}>Especie: {report.species}</Text>
+            </View>
+          ) : null}
           {report.attributes?.color ? (
-            <Text style={styles.detail}>Color: {report.attributes.color}</Text>
+            <View style={styles.detailRow}>
+              <Ionicons name="color-palette-outline" size={14} color={colors.textMuted} />
+              <Text style={styles.detail}>Color: {report.attributes.color}</Text>
+            </View>
           ) : null}
           {report.attributes?.size ? (
-            <Text style={styles.detail}>Tamaño: {report.attributes.size}</Text>
+            <View style={styles.detailRow}>
+              <Ionicons name="resize-outline" size={14} color={colors.textMuted} />
+              <Text style={styles.detail}>Tamaño: {report.attributes.size}</Text>
+            </View>
           ) : null}
           {report.attributes?.breed ? (
-            <Text style={styles.detail}>Raza: {report.attributes.breed}</Text>
+            <View style={styles.detailRow}>
+              <Ionicons name="ribbon-outline" size={14} color={colors.textMuted} />
+              <Text style={styles.detail}>Raza: {report.attributes.breed}</Text>
+            </View>
           ) : null}
         </Card>
       ) : null}
 
-      <LocationCard location={report.location} />
+      <LocationCard
+        location={report.location}
+        onViewOnMap={() => {
+          focusStore.set({ lat: report.location.lat, lng: report.location.lng });
+          router.back();
+        }}
+      />
 
       {/* Coincidencias IA */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Coincidencias de IA</Text>
+        <Text style={styles.sectionHint}>
+          Candidatos visualmente compatibles. La IA no confirma identidad.
+        </Text>
         {matches.length > 0 ? (
-          matches.map((m) => (
-            <Pressable
-              key={m.id}
-              style={styles.matchCard}
-              onPress={() => router.push(`/report/${m.candidateReportId}`)}
-            >
-              <View style={styles.matchHeader}>
-                <Text style={styles.matchLabel}>Candidato #{m.rank ?? '?'}</Text>
-                <View style={[styles.scoreBadge, compatColor(m.compatibility)]}>
-                  <Text style={styles.scoreText}>{Math.round(m.compatibility)}%</Text>
+          matches.map((m) => {
+            const tint = compatTint(m.compatibility);
+            return (
+              <Pressable
+                key={m.id}
+                style={styles.matchCard}
+                onPress={() => router.push(`/report/${m.candidateReportId}`)}
+              >
+                <View style={styles.matchRow}>
+                  {/* Thumbnail del candidato */}
+                  <View style={styles.matchThumb}>
+                    {matchImages[m.candidateReportId] ? (
+                      <Image
+                        source={{ uri: matchImages[m.candidateReportId] }}
+                        style={styles.matchThumbImg}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.matchThumbPlaceholder, { backgroundColor: withAlpha(tint, 0.12) }]}>
+                        <Ionicons name="paw-outline" size={22} color={tint} />
+                      </View>
+                    )}
+                    <View style={[styles.rankBadge, { backgroundColor: tint }]}>
+                      <Text style={styles.rankText}>#{m.rank ?? '?'}</Text>
+                    </View>
+                  </View>
+
+                  {/* Info del candidato */}
+                  <View style={styles.matchInfo}>
+                    <View style={styles.matchHeader}>
+                      <Text style={styles.matchLabel}>Candidato #{m.rank ?? '?'}</Text>
+                      <View style={[styles.scoreBadge, { backgroundColor: withAlpha(tint, 0.14) }]}>
+                        <Text style={[styles.scoreText, { color: tint }]}>
+                          {Math.round(m.compatibility)}%
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.scoreBar}>
+                      <View
+                        style={[
+                          styles.scoreBarFill,
+                          { width: `${m.compatibility}%`, backgroundColor: tint },
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.matchCta}>
+                      <Text style={styles.matchSub}>Ver este caso</Text>
+                      <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+                    </View>
+                  </View>
                 </View>
-              </View>
-              <View style={styles.scoreBar}>
-                <View style={[styles.scoreBarFill, { width: `${m.compatibility}%` }]} />
-              </View>
-              <Text style={styles.matchSub}>Compatibilidad visual</Text>
-            </Pressable>
-          ))
+              </Pressable>
+            );
+          })
         ) : (
-          <Text style={styles.empty}>Aún no hay coincidencias para este reporte.</Text>
+          <View style={styles.emptySection}>
+            <Ionicons name="search-outline" size={28} color={colors.border} />
+            <Text style={styles.empty}>Sin coincidencias aún.</Text>
+          </View>
         )}
 
         {processError ? <StatusBanner tone="error" message={processError} /> : null}
 
         <Button
           label="Buscar coincidencias con IA"
+          icon="hardware-chip-outline"
           variant="secondary"
           onPress={handleProcess}
           loading={processing}
@@ -277,15 +380,21 @@ export default function ReportDetailScreen() {
       {updates.length > 0 ? (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actividad del caso</Text>
-          {updates.map((u) => (
+          {updates.map((u, i) => (
             <View key={u.id} style={styles.timelineItem}>
-              <View style={styles.timelineDot} />
+              <View style={styles.timelineRail}>
+                <IconBadge icon={kindIcon(u.kind)} color={colors.primary} size={36} />
+                {i < updates.length - 1 ? <View style={styles.timelineLine} /> : null}
+              </View>
               <View style={styles.timelineContent}>
                 <Text style={styles.timelineKind}>{kindLabel(u.kind)}</Text>
                 {u.body ? <Text style={styles.timelineBody}>{u.body}</Text> : null}
                 <Text style={styles.timelineDate}>
                   {new Date(u.createdAt).toLocaleString('es-MX', {
-                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit',
                   })}
                 </Text>
               </View>
@@ -303,20 +412,23 @@ export default function ReportDetailScreen() {
             <View style={styles.actionButtons}>
               <Pressable
                 style={[styles.actionBtn, styles.actionBtnSuccess]}
-                onPress={() => handleStatusChange('resolved', 'Resuelto — mascota localizada')}
+                onPress={() => handleStatusChange('resolved', 'Resuelto')}
               >
-                <Text style={styles.actionBtnText}>✓ Mascota localizada</Text>
+                <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                <Text style={styles.actionBtnText}>Mascota localizada</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionBtn, styles.actionBtnWarning]}
                 onPress={() => handleStatusChange('rescue_in_progress', 'Rescate en progreso')}
               >
+                <Ionicons name="car-outline" size={18} color="#fff" />
                 <Text style={styles.actionBtnText}>Estoy en rescate</Text>
               </Pressable>
               <Pressable
                 style={[styles.actionBtn, styles.actionBtnDanger]}
                 onPress={() => handleStatusChange('cancelled', 'Cancelado')}
               >
+                <Ionicons name="close-circle" size={18} color="#fff" />
                 <Text style={styles.actionBtnText}>Cancelar reporte</Text>
               </Pressable>
             </View>
@@ -333,9 +445,9 @@ export default function ReportDetailScreen() {
         </View>
       )}
 
-      {/* Botón chat */}
       <Button
         label="Ir al chat del caso"
+        icon="chatbubbles-outline"
         onPress={() => router.push(`/case/${id}`)}
       />
     </ScreenContainer>
@@ -353,10 +465,24 @@ function kindLabel(kind: string): string {
   return KIND_LABELS[kind] ?? kind;
 }
 
-function compatColor(score: number) {
-  if (score >= 70) return { backgroundColor: colors.successMuted };
-  if (score >= 40) return { backgroundColor: colors.warningMuted };
-  return { backgroundColor: colors.dangerMuted };
+import type { ComponentProps } from 'react';
+type IoniconsName = ComponentProps<typeof Ionicons>['name'];
+
+const KIND_ICON_MAP: Record<string, IoniconsName> = {
+  vision_processed: 'hardware-chip-outline',
+  status_changed: 'refresh-outline',
+  member_joined: 'person-add-outline',
+  rescuer_assigned: 'medical-outline',
+};
+
+function kindIcon(kind: string): IoniconsName {
+  return KIND_ICON_MAP[kind] ?? 'ellipse-outline';
+}
+
+function compatTint(score: number): string {
+  if (score >= 70) return colors.success;
+  if (score >= 40) return colors.warning;
+  return colors.danger;
 }
 
 const styles = StyleSheet.create({
@@ -365,41 +491,106 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* Hero image */
   photoContainer: {
     width: '100%',
-    aspectRatio: 4 / 3,
-    borderRadius: radius.md,
+    aspectRatio: 16 / 9,
+    borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.surfaceMuted,
+    ...shadow.sm,
   },
   photo: {
     width: '100%',
     height: '100%',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  photoHidden: {
+    opacity: 0,
+    position: 'absolute',
   },
-  status: {
+  photoPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceMuted,
+  },
+  photoPlaceholderText: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
-    fontWeight: fontWeight.medium,
+  },
+  typePillOverlay: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+  },
+  typePillText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: '#fff',
+    letterSpacing: letterSpacing.wide,
+  },
+  /* Encabezado */
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  headerText: {
+    flex: 1,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  status: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
   },
   title: {
     fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
+    fontWeight: fontWeight.heavy,
     color: colors.text,
+    letterSpacing: letterSpacing.tight,
+    lineHeight: 34,
   },
   description: {
     fontSize: fontSize.md,
     color: colors.text,
+    lineHeight: 24,
   },
   sectionTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
     color: colors.text,
-    marginBottom: spacing.sm,
+    letterSpacing: letterSpacing.snug,
+  },
+  sectionHint: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: -spacing.xs,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   detail: {
     fontSize: fontSize.sm,
@@ -410,10 +601,53 @@ const styles = StyleSheet.create({
   },
   matchCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.sm,
+    ...shadow.sm,
+  },
+  matchRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  matchThumb: {
+    width: 80,
+    height: 80,
+    borderRadius: radius.md,
+    overflow: 'visible',
+    position: 'relative',
+    flexShrink: 0,
+  },
+  matchThumbImg: {
+    width: 80,
+    height: 80,
+    borderRadius: radius.md,
+  },
+  matchThumbPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankText: {
+    fontSize: 9,
+    fontWeight: fontWeight.heavy,
+    color: '#fff',
+  },
+  matchInfo: {
+    flex: 1,
     gap: spacing.xs,
   },
   matchHeader: {
@@ -423,33 +657,41 @@ const styles = StyleSheet.create({
   },
   matchLabel: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
-    color: colors.text,
-  },
-  scoreBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-  },
-  scoreText: {
-    fontSize: fontSize.sm,
     fontWeight: fontWeight.bold,
     color: colors.text,
   },
+  scoreBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  scoreText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+  },
   scoreBar: {
-    height: 4,
+    height: 8,
     backgroundColor: colors.surfaceMuted,
-    borderRadius: 2,
+    borderRadius: radius.pill,
     overflow: 'hidden',
   },
   scoreBarFill: {
     height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 2,
+    borderRadius: radius.pill,
+  },
+  matchCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   matchSub: {
     fontSize: fontSize.xs,
     color: colors.textMuted,
+  },
+  emptySection: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
   },
   empty: {
     fontSize: fontSize.sm,
@@ -457,29 +699,34 @@ const styles = StyleSheet.create({
   },
   timelineItem: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.md,
     alignItems: 'flex-start',
   },
-  timelineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.primary,
-    marginTop: 5,
-    flexShrink: 0,
+  timelineRail: {
+    alignItems: 'center',
+    width: 36,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    minHeight: 16,
+    backgroundColor: colors.border,
+    marginTop: 2,
   },
   timelineContent: {
     flex: 1,
     gap: 2,
+    paddingBottom: spacing.lg,
   },
   timelineKind: {
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
+    fontWeight: fontWeight.bold,
     color: colors.text,
   },
   timelineBody: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
+    lineHeight: 20,
   },
   timelineDate: {
     fontSize: fontSize.xs,
@@ -492,23 +739,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   actionBtn: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    ...shadow.sm,
   },
-  actionBtnSuccess: {
-    backgroundColor: colors.success,
-  },
-  actionBtnWarning: {
-    backgroundColor: colors.warning,
-  },
-  actionBtnDanger: {
-    backgroundColor: colors.danger,
-  },
+  actionBtnSuccess: { backgroundColor: colors.success },
+  actionBtnWarning: { backgroundColor: colors.warning },
+  actionBtnDanger: { backgroundColor: colors.danger },
   actionBtnText: {
     color: '#fff',
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
+    fontWeight: fontWeight.bold,
   },
 });

@@ -12,28 +12,26 @@ import {
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import type { Report, ReportType } from '../../types/report';
+import { reportTypeColors } from '../../theme/tokens';
+import { reportTypeLabels } from '../reports/labels';
 
 const OSM_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const CDMX: [number, number] = [-99.1332, 19.4326];
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? '';
 
-const MARKER_COLOR: Record<ReportType, string> = {
-  lost: '#E53935',
-  sighting: '#1E88E5',
-  injured: '#FB8C00',
-  abandoned: '#8E24AA',
-};
-
-const TYPE_LABEL: Record<ReportType, string> = {
-  lost: 'Perdido',
-  sighting: 'Avistamiento',
-  injured: 'Herido',
-  abandoned: 'Abandonado',
-};
+const MARKER_COLOR: Record<ReportType, string> = reportTypeColors;
+const TYPE_LABEL: Record<ReportType, string> = reportTypeLabels;
 
 interface Props {
   reports?: Report[];
   onReportPress?: (report: Report) => void;
+  /** Reporte al que trazar ruta automáticamente (desde la lista) */
+  routeTarget?: Report | null;
+  onRouteClear?: () => void;
+  /** El padre puede guardar aquí la función flyToUser para invocarla desde un botón externo */
+  flyToUserRef?: React.MutableRefObject<(() => void) | undefined>;
+  /** Coordenadas a las que volar directamente (desde detalle de reporte) */
+  focusCoords?: { lat: number; lng: number } | null;
 }
 
 interface RouteGeoJSON {
@@ -42,24 +40,35 @@ interface RouteGeoJSON {
   properties: Record<string, never>;
 }
 
-export function MapView({ reports = [], onReportPress }: Props) {
+export function MapView({
+  reports = [],
+  onReportPress,
+  routeTarget,
+  onRouteClear,
+  flyToUserRef,
+  focusCoords,
+}: Props) {
   const cameraRef = useRef<CameraRef>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [centeredOnUser, setCenteredOnUser] = useState(false);
   const [selected, setSelected] = useState<Report | null>(null);
   const [route, setRoute] = useState<RouteGeoJSON | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
+  // Si routeTarget llega antes de que haya posición, guardamos el target pendiente
+  const pendingRouteRef = useRef<Report | null>(null);
   // Evita que el onPress del mapa cancele la selección al tocar un pin
   const suppressMapPress = useRef(false);
 
   const position = useCurrentPosition({ enabled: hasPermission });
 
+  // ── Permisos de ubicación ─────────────────────────────────────────────────
   useEffect(() => {
     Location.requestForegroundPermissionsAsync().then(({ status }) => {
       setHasPermission(status === 'granted');
     });
   }, []);
 
+  // ── Centrar en usuario la primera vez que llega la posición ───────────────
   useEffect(() => {
     if (position && !centeredOnUser) {
       cameraRef.current?.flyTo({
@@ -70,13 +79,77 @@ export function MapView({ reports = [], onReportPress }: Props) {
     }
   }, [position, centeredOnUser]);
 
-  const fetchRoute = async (report: Report) => {
-    if (!position) return;
+  // ── Exponer flyToUser al padre via ref ────────────────────────────────────
+  useEffect(() => {
+    if (!flyToUserRef) return;
+    flyToUserRef.current = () => {
+      if (!position) return;
+      cameraRef.current?.flyTo({
+        center: [position.coords.longitude, position.coords.latitude],
+        zoom: 16,
+        duration: 800,
+      });
+    };
+  }, [position, flyToUserRef]);
+
+  // ── Volar a coordenadas específicas (desde detalle de reporte) ───────────
+  useEffect(() => {
+    if (!focusCoords) return;
+    cameraRef.current?.flyTo({
+      center: [focusCoords.lng, focusCoords.lat],
+      zoom: 16,
+      duration: 800,
+    });
+  }, [focusCoords]);
+
+  // ── Cuando llega un routeTarget desde la lista ────────────────────────────
+  useEffect(() => {
+    if (!routeTarget) {
+      pendingRouteRef.current = null;
+      return;
+    }
+    suppressMapPress.current = true;
+    setSelected(routeTarget);
+    setRoute(null);
+    setTimeout(() => { suppressMapPress.current = false; }, 150);
+
+    // Volar al reporte inmediatamente para que el usuario lo vea en el mapa
+    cameraRef.current?.flyTo({
+      center: [routeTarget.location.lng, routeTarget.location.lat],
+      zoom: 15,
+      duration: 700,
+    });
+
+    if (position) {
+      void doFetchRoute(routeTarget, position);
+    } else {
+      pendingRouteRef.current = routeTarget;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeTarget]);
+
+  // ── Ejecutar ruta pendiente cuando llega la posición ─────────────────────
+  useEffect(() => {
+    if (position && pendingRouteRef.current) {
+      const target = pendingRouteRef.current;
+      pendingRouteRef.current = null;
+      void doFetchRoute(target, position);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position]);
+
+  // ── Trazar ruta via Mapbox Directions ────────────────────────────────────
+  const doFetchRoute = async (
+    report: Report,
+    pos: NonNullable<ReturnType<typeof useCurrentPosition>>,
+  ) => {
     setLoadingRoute(true);
     try {
-      const origin = `${position.coords.longitude},${position.coords.latitude}`;
+      const origin = `${pos.coords.longitude},${pos.coords.latitude}`;
       const dest = `${report.location.lng},${report.location.lat}`;
-      const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${origin};${dest}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+      const url =
+        `https://api.mapbox.com/directions/v5/mapbox/walking/${origin};${dest}` +
+        `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
       const res = await fetch(url);
       const json = (await res.json()) as {
         routes?: { geometry: { coordinates: [number, number][] } }[];
@@ -87,14 +160,14 @@ export function MapView({ reports = [], onReportPress }: Props) {
           geometry: { type: 'LineString', coordinates: json.routes[0].geometry.coordinates },
           properties: {},
         });
-        // Fit camera to show the full route
         const coords = json.routes[0].geometry.coordinates;
         if (coords.length > 1) {
-          const lngs = coords.map((c) => c[0]);
-          const lats = coords.map((c) => c[1]);
+          // Incluir posición del usuario en los bounds para que ambos puntos sean visibles
+          const allLngs = [...coords.map((c) => c[0]), pos.coords.longitude];
+          const allLats = [...coords.map((c) => c[1]), pos.coords.latitude];
           cameraRef.current?.fitBounds(
-            [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)],
-            { padding: { top: 80, bottom: 220, left: 60, right: 60 }, duration: 600 },
+            [Math.min(...allLngs), Math.min(...allLats), Math.max(...allLngs), Math.max(...allLats)],
+            { padding: { top: 100, bottom: 260, left: 60, right: 60 }, duration: 800 },
           );
         }
       }
@@ -105,7 +178,11 @@ export function MapView({ reports = [], onReportPress }: Props) {
     }
   };
 
-  const clearRoute = () => setRoute(null);
+  const clearRoute = () => {
+    setRoute(null);
+    pendingRouteRef.current = null;
+    onRouteClear?.();
+  };
 
   const handleSelectReport = (report: Report) => {
     suppressMapPress.current = true;
@@ -177,7 +254,6 @@ export function MapView({ reports = [], onReportPress }: Props) {
       {/* Popup del reporte seleccionado */}
       {selected && (
         <View style={styles.popup}>
-          {/* Info del reporte — toca para abrir detalle */}
           <Pressable style={styles.popupInfo} onPress={() => onReportPress?.(selected)}>
             <View style={[styles.popupDot, { backgroundColor: MARKER_COLOR[selected.type] }]} />
             <View style={styles.popupContent}>
@@ -185,12 +261,11 @@ export function MapView({ reports = [], onReportPress }: Props) {
               <Text style={styles.popupTitle} numberOfLines={2}>{selected.title}</Text>
               <Text style={styles.popupCta}>Toca para ver el caso →</Text>
             </View>
-            <Pressable style={styles.popupClose} onPress={() => { setSelected(null); setRoute(null); }}>
+            <Pressable style={styles.popupClose} onPress={() => { setSelected(null); clearRoute(); }}>
               <Text style={styles.popupCloseText}>✕</Text>
             </Pressable>
           </Pressable>
 
-          {/* Botones de acción */}
           <View style={styles.popupActions}>
             {route ? (
               <TouchableOpacity style={styles.btnCancel} onPress={clearRoute}>
@@ -198,15 +273,15 @@ export function MapView({ reports = [], onReportPress }: Props) {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={[styles.btnRoute, !position && styles.btnDisabled]}
-                onPress={() => { void fetchRoute(selected); }}
+                style={[styles.btnRoute, (!position || loadingRoute) && styles.btnDisabled]}
+                onPress={() => { if (position) void doFetchRoute(selected, position); }}
                 disabled={!position || loadingRoute}
               >
                 {loadingRoute ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text style={styles.btnRouteText}>
-                    {position ? '🗺 Cómo llegar' : 'Sin ubicación'}
+                    {position ? '🗺 Cómo llegar' : 'Obteniendo ubicación…'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -285,7 +360,7 @@ const styles = StyleSheet.create({
   },
   popupCta: {
     fontSize: 12,
-    color: '#4CAF50',
+    color: '#F2563C',
     marginTop: 2,
   },
   popupClose: {
@@ -302,8 +377,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   btnRoute: {
-    backgroundColor: '#1565C0',
-    borderRadius: 8,
+    backgroundColor: '#F2563C',
+    borderRadius: 24,
     paddingVertical: 10,
     alignItems: 'center',
   },
