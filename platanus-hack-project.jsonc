@@ -1,16 +1,16 @@
 {
   // Your project's name, as it will appear on the voting page.
-  "project-name": "<FILL THIS>",
+  "project-name": "Huella SOS",
 
   // Short one-line summary of your project (in Spanish).
-  "project-oneliner-spanish": "<FILL THIS>",
+  "project-oneliner-spanish": "Reporta, localiza y coordina el rescate de mascotas perdidas con IA visual y GPS en tiempo real.",
 
   // Brief description of your project (in Spanish).
-  "project-description-spanish": "<FILL THIS>",
+  "project-description-spanish": "Huella SOS es una app Android que permite reportar animales perdidos, avistados o heridos usando la ubicación GPS actual. La IA (DINOv2) compara imágenes para encontrar coincidencias visuales entre reportes y sugerir candidatos con un score de compatibilidad del 0 al 100. Los rescatistas pueden coordinar el caso en tiempo real con chat privado y seguimiento GPS durante el rescate. Todo el flujo va de reportar → localizar → comparar con IA → validar → resolver.",
 
   // Public URL where your project is deployed and running.
   // Must be a valid URL, for example: https://my-project.vercel.app
   // If your project is an app, put the download link here instead
   // (for example, a URL to download an APK).
-  "deploy-url": "<FILL THIS>"
+  "deploy-url": "https://github.com/platanus-hack/platanus-hack-26-mx-team-17"
 }
