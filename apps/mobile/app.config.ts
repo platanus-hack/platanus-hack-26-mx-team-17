@@ -30,9 +30,32 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'ACCESS_FINE_LOCATION',
       'ACCESS_COARSE_LOCATION',
       'CAMERA',
+      // Tracking en segundo plano durante un rescate activo (Rol 1).
+      'ACCESS_BACKGROUND_LOCATION',
+      'FOREGROUND_SERVICE',
+      'FOREGROUND_SERVICE_LOCATION',
     ],
   },
-  plugins: ['expo-router'],
+  plugins: [
+    'expo-router',
+    // Mapbox nativo (Rol 1). El plugin lee el token de DESCARGA (secreto)
+    // directamente de la variable de entorno RNMAPBOX_MAPS_DOWNLOAD_TOKEN
+    // (EAS secret / .env local) en build. NUNCA se hardcodea ni se versiona.
+    // (El prop `RNMapboxMapsDownloadToken` está deprecado en favor del env var.)
+    '@rnmapbox/maps',
+    // Ubicación + tracking en segundo plano con foreground service (Rol 1).
+    [
+      'expo-location',
+      {
+        locationAlwaysAndWhenInUsePermission:
+          'Huella SOS usa tu ubicación para compartir tu posición con los miembros del caso durante un rescate.',
+        locationWhenInUsePermission:
+          'Huella SOS usa tu ubicación actual para crear reportes y centrar el mapa.',
+        isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
+      },
+    ],
+  ],
   experiments: {
     typedRoutes: true,
   },
