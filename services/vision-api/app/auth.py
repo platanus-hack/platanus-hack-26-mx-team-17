@@ -9,6 +9,7 @@ service role key; eso es exclusivo del lado servidor.
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 
 import jwt
@@ -50,9 +51,14 @@ def authenticate(request: Request, settings: Settings) -> AuthenticatedUser:
             # (no abrimos un agujero de seguridad silencioso).
             raise unauthenticated("Servicio sin secreto JWT configurado")
         try:
+            # Supabase firma con los bytes decodificados del secreto base64
+            secret_bytes = base64.b64decode(settings.supabase_jwt_secret)
+        except Exception:
+            secret_bytes = settings.supabase_jwt_secret.encode()
+        try:
             claims = jwt.decode(
                 token,
-                settings.supabase_jwt_secret,
+                secret_bytes,
                 algorithms=["HS256"],
                 audience="authenticated",
             )
