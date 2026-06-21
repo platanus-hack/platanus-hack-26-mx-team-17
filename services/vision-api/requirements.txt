@@ -13,6 +13,7 @@ numpy==2.4.6
 
 # Auth (validación de JWT de Supabase) y HTTP (descarga de imágenes)
 PyJWT==2.10.1
+cryptography==43.0.3
 httpx==0.28.1
 
 # NOTA sobre torch:
