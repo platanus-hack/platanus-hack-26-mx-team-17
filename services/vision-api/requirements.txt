@@ -1,0 +1,18 @@
+# Vision API — dependencias mínimas (etapa 1: /health + carga de DINOv2-small)
+# Versiones fijadas para builds reproducibles.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic-settings==2.7.1
+
+# Modelo / inferencia
+torch==2.5.1
+transformers==4.47.1
+pillow==11.0.0
+
+# NOTA sobre torch:
+#  - Local (Windows + RTX 3050): para usar la GPU instala la build CUDA:
+#      pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+#  - Railway (CPU-only): el Dockerfile usará el índice CPU:
+#      pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+#  El servicio auto-detecta el dispositivo (VISION_DEVICE=auto).
