@@ -89,6 +89,18 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+## Evaluación de calidad de match (imágenes reales)
+
+Valida el criterio "el animal objetivo aparece en top 3" con fotos reales
+(descarga perros distintos; el target es una toma aumentada del mismo animal):
+
+```bash
+python scripts/eval_dataset.py    # imprime top-1 / top-3 accuracy
+```
+
+Resultado de referencia: top-1 y top-3 = 100% (10/10). Las imágenes se cachean
+en `eval/cache/` (gitignored).
+
 ## Docker (Railway)
 
 La imagen instala **torch CPU** y **pre-descarga** los pesos de DINOv2-small en
