@@ -264,30 +264,30 @@ export const storageService: StorageService = {
     const storagePath = `${input.reportId}/${fileName}`;
     const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
-    // Subir directo al REST API de Supabase Storage con FormData nativo
-    // (el JS client tiene un bug de Blob en Hermes/React Native)
+    // XHR en lugar de fetch: en Hermes/React Native, fetch lanza
+    // "Unsupported FormDataPart implementation" con objetos { uri, name, type }.
+    // XHR nativo de Android maneja este formato correctamente.
     const { data: { session } } = await supabase.auth.getSession();
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-    const formData = new FormData();
-    // React Native / Hermes: el objeto { uri, name, type } es la forma nativa de adjuntar archivos.
-    // La clave vacía '' no está soportada — se usa 'file'.
-    formData.append('file', { uri: input.fileUri, name: fileName, type: contentType } as unknown as File);
+    const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
 
-    const uploadRes = await fetch(
-      `${supabaseUrl}/storage/v1/object/report-images/${storagePath}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session?.access_token ?? ''}`,
-          'x-upsert': 'false',
-        },
-        body: formData,
-      },
-    );
-
-    const uploadError = uploadRes.ok ? null : { message: `Upload failed: ${uploadRes.status}` };
-
-    if (uploadError) throw mapSupabaseError(uploadError);
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${supabaseUrl}/storage/v1/object/report-images/${storagePath}`);
+      xhr.setRequestHeader('Authorization', `Bearer ${session?.access_token ?? ''}`);
+      xhr.setRequestHeader('x-upsert', 'false');
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState !== XMLHttpRequest.DONE) return;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          reject(mapSupabaseError({ message: `Upload failed: ${xhr.status} ${xhr.responseText.slice(0, 120)}` }));
+        }
+      };
+      xhr.onerror = () => reject(mapSupabaseError({ message: 'Error de red al subir imagen' }));
+      const formData = new FormData();
+      formData.append('file', { uri: input.fileUri, name: fileName, type: contentType } as unknown as File);
+      xhr.send(formData);
+    });
 
     const { data, error } = await supabase
       .from('report_images')
