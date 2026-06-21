@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
@@ -11,31 +13,60 @@ import { StatusBanner } from '../../src/components/ui/StatusBanner';
 import { TextField } from '../../src/components/ui/TextField';
 import { LocationCard } from '../../src/features/reports/components/LocationCard';
 import { reportTypeOptions } from '../../src/features/reports/labels';
-import { getMockCurrentLocation } from '../../src/features/reports/mockLocation';
 import { useCreateReportForm } from '../../src/features/reports/useCreateReportForm';
 import { colors, fontSize, spacing } from '../../src/theme/tokens';
 import type { ReportLocation } from '../../src/types/report';
 
-/**
- * Formulario de creación de reporte (fase mock).
- *
- * - Ubicación SÓLO GPS actual (placeholder mock; Rol 1 conecta el GPS real).
- * - Imagen: placeholder (Rol 4 conecta expo-image-picker en fase posterior).
- * - Envío vía `reportService` (mock; Rol 2 conecta Supabase).
- * - Maneja estados: vacío, validación, enviando, éxito y error.
- */
 export default function NewReportScreen() {
   const router = useRouter();
   const { fields, errors, status, submitError, setField, submit } = useCreateReportForm();
 
-  // Placeholder de captura GPS: en mock se obtiene al montar la pantalla.
   const [location, setLocation] = useState<ReportLocation | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  // Captura GPS real al montar la pantalla
   useEffect(() => {
-    setLocation(getMockCurrentLocation());
+    Location.requestForegroundPermissionsAsync().then(async ({ status: s }) => {
+      if (s !== 'granted') return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setLocation({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracyM: pos.coords.accuracy ?? 0,
+        capturedAt: new Date().toISOString(),
+      });
+    });
   }, []);
 
+  const pickPhoto = async () => {
+    const { status: s } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (s !== 'granted') return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status: s } = await ImagePicker.requestCameraPermissionsAsync();
+    if (s !== 'granted') return;
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
   const handleSubmit = async () => {
-    const created = await submit(location);
+    const created = await submit(location, photoUri);
     if (created) {
       router.replace(`/report/${created.id}`);
     }
@@ -101,12 +132,26 @@ export default function NewReportScreen() {
         placeholder="Mestizo"
       />
 
-      {/* Placeholder de imagen: la captura/selección real la integra Rol 4 con
-          expo-image-picker en una fase posterior. */}
-      <FormField label="Foto" helper="La carga de imagen se integra próximamente.">
-        <Card style={styles.imagePlaceholder}>
-          <Text style={styles.imageText}>📷 Agregar foto (próximamente)</Text>
-        </Card>
+      {/* Selector de foto */}
+      <FormField label="Foto">
+        {photoUri ? (
+          <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8}>
+            <Image source={{ uri: photoUri }} style={styles.preview} resizeMode="cover" />
+            <Text style={styles.changePhoto}>Cambiar foto</Text>
+          </TouchableOpacity>
+        ) : (
+          <Card style={styles.photoCard}>
+            <TouchableOpacity style={styles.photoOption} onPress={takePhoto} activeOpacity={0.7}>
+              <Text style={styles.photoIcon}>📷</Text>
+              <Text style={styles.photoLabel}>Tomar foto</Text>
+            </TouchableOpacity>
+            <View style={styles.divider} />
+            <TouchableOpacity style={styles.photoOption} onPress={pickPhoto} activeOpacity={0.7}>
+              <Text style={styles.photoIcon}>🖼️</Text>
+              <Text style={styles.photoLabel}>Elegir de galería</Text>
+            </TouchableOpacity>
+          </Card>
+        )}
       </FormField>
 
       <LocationCard location={location} />
@@ -133,15 +178,43 @@ const styles = StyleSheet.create({
   attrItem: {
     flex: 1,
   },
-  imagePlaceholder: {
+  photoCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     minHeight: 96,
+    padding: 0,
+    overflow: 'hidden',
     backgroundColor: colors.surfaceMuted,
     borderStyle: 'dashed',
   },
-  imageText: {
+  photoOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    gap: spacing.xs,
+  },
+  photoIcon: {
+    fontSize: 28,
+  },
+  photoLabel: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
+  },
+  divider: {
+    width: 1,
+    height: '60%',
+    backgroundColor: colors.border,
+  },
+  preview: {
+    width: '100%',
+    height: 180,
+    borderRadius: 8,
+  },
+  changePhoto: {
+    textAlign: 'center',
+    fontSize: fontSize.sm,
+    color: colors.primary,
+    marginTop: spacing.xs,
   },
 });

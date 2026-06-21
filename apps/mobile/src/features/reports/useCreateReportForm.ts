@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import type {
   CreateReportInput,
@@ -6,7 +6,7 @@ import type {
   ReportLocation,
   ReportType,
 } from '../../types/report';
-import { reportService, ServiceError } from './reportService';
+import { reportService, storageService, ServiceError } from './reportService';
 
 export type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -49,6 +49,7 @@ export function useCreateReportForm() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<SubmitStatus>('idle');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   const setField = useCallback(
     <K extends keyof FormFields>(key: K, value: FormFields[K]) => {
@@ -89,27 +90,39 @@ export function useCreateReportForm() {
   );
 
   const submit = useCallback(
-    async (location: ReportLocation | null): Promise<Report | null> => {
+    async (location: ReportLocation | null, photoUri: string | null): Promise<Report | null> => {
+      if (submittingRef.current) return null; // bloquea doble toque
       const validationErrors = validate(location);
       setErrors(validationErrors);
       if (Object.keys(validationErrors).length > 0 || !location) {
         return null;
       }
 
+      submittingRef.current = true;
       setStatus('submitting');
       setSubmitError(null);
       try {
         const report = await reportService.createReport(buildInput(location));
+        if (photoUri) {
+          await storageService.uploadReportImage({
+            reportId: report.id,
+            fileUri: photoUri,
+            isPrimary: true,
+          });
+        }
         setStatus('success');
         return report;
       } catch (error) {
         setStatus('error');
-        setSubmitError(
-          error instanceof ServiceError
+        const msg = error instanceof ServiceError
+          ? `[${error.code}] ${error.message}`
+          : error instanceof Error
             ? error.message
-            : 'No se pudo crear el reporte. Intenta de nuevo.',
-        );
+            : 'No se pudo crear el reporte. Intenta de nuevo.';
+        setSubmitError(msg);
         return null;
+      } finally {
+        submittingRef.current = false;
       }
     },
     [validate, buildInput],

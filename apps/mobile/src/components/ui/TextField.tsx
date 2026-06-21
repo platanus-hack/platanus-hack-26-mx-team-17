@@ -12,6 +12,7 @@ interface TextFieldProps {
   helper?: string;
   error?: string;
   multiline?: boolean;
+  secureTextEntry?: boolean;
   keyboardType?: 'default' | 'numeric' | 'email-address' | 'phone-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }
@@ -25,6 +26,7 @@ export function TextField({
   helper,
   error,
   multiline = false,
+  secureTextEntry = false,
   keyboardType = 'default',
   autoCapitalize = 'sentences',
 }: TextFieldProps) {
@@ -36,6 +38,7 @@ export function TextField({
         placeholder={placeholder}
         placeholderTextColor={colors.textMuted}
         multiline={multiline}
+        secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         style={[

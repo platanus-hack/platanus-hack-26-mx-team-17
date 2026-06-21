@@ -32,7 +32,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'CAMERA',
     ],
   },
-  plugins: ['expo-router'],
+  plugins: ['expo-router', '@maplibre/maplibre-react-native', 'expo-image-picker'],
   experiments: {
     typedRoutes: true,
   },
