@@ -1,14 +1,16 @@
 """Validación del JWT de Supabase.
 
-El cliente envía `Authorization: Bearer <jwt>`. Validamos firma (HS256 con el
-JWT secret de Supabase) y expiración, y devolvemos el `sub` (user id).
+El cliente envía `Authorization: Bearer <jwt>`. Validamos firma (HS256) y
+expiración, devolviendo el `sub` (user id).
 
-NUNCA registramos el token ni el header completo. El cliente jamás envía la
-service role key; eso es exclusivo del lado servidor.
+Probamos dos formatos del secreto porque Supabase cloud almacena el secret
+como string base64 pero gotrue puede usarlo raw (UTF-8) o decodificado.
+NUNCA registramos el token ni el secreto.
 """
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 
 import jwt
@@ -34,29 +36,30 @@ def _extract_bearer(request: Request) -> str:
     return token
 
 
-def authenticate(request: Request, settings: Settings) -> AuthenticatedUser:
-    """Valida el JWT del request y devuelve el usuario, o lanza 401."""
-    token = _extract_bearer(request)
+def _candidate_keys(secret_str: str) -> list[bytes]:
+    """Devuelve las representaciones posibles del secreto para probar."""
+    secret_str = secret_str.strip()  # elimina espacios/newlines accidentales
+    candidates: list[bytes] = [secret_str.encode()]
+    # Supabase cloud a veces almacena el secreto como base64 del key material real.
+    for padding in ("", "=", "=="):
+        try:
+            decoded = base64.b64decode(secret_str + padding)
+            if decoded not in candidates:
+                candidates.append(decoded)
+            break
+        except Exception:
+            continue
+    return candidates
 
-    # Modo desarrollo/test: sin verificación de firma (sólo decodifica claims).
-    if settings.auth_disabled:
+
+def _verify_token(token: str, secret_str: str) -> dict:
+    """Verifica el JWT probando raw UTF-8 y base64-decoded del secreto."""
+    last_exc: Exception | None = None
+    for key_bytes in _candidate_keys(secret_str):
         try:
-            claims = jwt.decode(token, options={"verify_signature": False})
-        except jwt.PyJWTError as exc:
-            raise unauthenticated("Token no decodificable") from exc
-    else:
-        if not settings.supabase_jwt_secret:
-            # Sin secreto no podemos verificar: tratamos como no autenticado
-            # (no abrimos un agujero de seguridad silencioso).
-            raise unauthenticated("Servicio sin secreto JWT configurado")
-        # Supabase firma con HS256 usando el secreto como cadena UTF-8 raw.
-        # No aplicamos base64-decode: el secreto del dashboard de Supabase
-        # es la clave de firma directa, no una representación base64.
-        secret_bytes = settings.supabase_jwt_secret.encode()
-        try:
-            claims = jwt.decode(
+            return jwt.decode(
                 token,
-                secret_bytes,
+                key_bytes,
                 algorithms=["HS256"],
                 audience="authenticated",
             )
@@ -65,9 +68,30 @@ def authenticate(request: Request, settings: Settings) -> AuthenticatedUser:
         except jwt.InvalidAudienceError as exc:
             raise unauthenticated("JWT audience incorrecto (esperado: authenticated)") from exc
         except jwt.InvalidSignatureError as exc:
-            raise unauthenticated("JWT firma incorrecta — VISION_SUPABASE_JWT_SECRET no coincide con Supabase") from exc
+            last_exc = exc
+            continue
         except jwt.PyJWTError as exc:
-            raise unauthenticated(f"JWT invalido: {type(exc).__name__}") from exc
+            last_exc = exc
+            continue
+
+    raise unauthenticated(
+        "JWT firma incorrecta — VISION_SUPABASE_JWT_SECRET no coincide con Supabase"
+    ) from last_exc
+
+
+def authenticate(request: Request, settings: Settings) -> AuthenticatedUser:
+    """Valida el JWT del request y devuelve el usuario, o lanza 401."""
+    token = _extract_bearer(request)
+
+    if settings.auth_disabled:
+        try:
+            claims = jwt.decode(token, options={"verify_signature": False})
+        except jwt.PyJWTError as exc:
+            raise unauthenticated("Token no decodificable") from exc
+    else:
+        if not settings.supabase_jwt_secret:
+            raise unauthenticated("Servicio sin secreto JWT configurado")
+        claims = _verify_token(token, settings.supabase_jwt_secret)
 
     user_id = claims.get("sub")
     if not user_id:
