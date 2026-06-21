@@ -101,14 +101,16 @@ export const matchService = {
     } = await supabase.auth.getSession();
     if (!session?.access_token) throw new MatchError('UNAUTHENTICATED', 'Sesión expirada, vuelve a iniciar sesión');
 
-    // DEBUG TEMPORAL — decodifica claims del JWT sin verificar firma
+    // DEBUG TEMPORAL — decodifica header y claims del JWT sin verificar firma
     try {
       const parts = session.access_token.split('.');
       if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        const b64 = (s: string) => JSON.parse(atob(s.replace(/-/g, '+').replace(/_/g, '/')));
+        const header = b64(parts[0]);
+        const payload = b64(parts[1]);
         const expDate = payload.exp ? new Date(payload.exp * 1000).toISOString() : 'N/A';
         const nowDate = new Date().toISOString();
-        console.warn('[JWT-DEBUG] aud:', payload.aud, '| role:', payload.role, '| exp:', expDate, '| now:', nowDate, '| sub:', payload.sub?.slice(0, 8));
+        console.warn('[JWT-DEBUG] alg:', header.alg, '| kid:', header.kid ?? 'none', '| aud:', payload.aud, '| exp:', expDate, '| now:', nowDate);
       }
     } catch { /* no bloquea */ }
 
