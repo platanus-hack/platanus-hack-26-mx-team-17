@@ -2,7 +2,7 @@
 
 ## Última actualización
 
-2026-06-20 — Migraciones iniciales y RLS creados (rama `feat/auth-chat-supabase`).
+2026-06-21 — Vision API (Rol 3) implementada, desplegada en Railway y verificada (rama `feature/vision-api`).
 
 ## Build estable
 
@@ -35,13 +35,20 @@ Ninguno. No existe APK todavía.
 
 ## Servicios desplegados
 
-- Ninguno. Supabase no desplegado. Vision API no inicializada. Sin despliegues públicos.
+- **Vision API (Rol 3): desplegada y pública** en Railway →
+  `https://huellasos-vision-production.up.railway.app` (`EXPO_PUBLIC_VISION_API_URL`).
+  - `GET /health` y `POST /v1/reports/{id}/process` operativos (DINOv2-small, CPU).
+  - Validación de JWT de Supabase; escribe `matches`/`report_updates` vía service role.
+  - Verificado end-to-end contra Supabase hosted; calidad de match top-1/top-3 = 100%.
+  - Handoff a Rol 4: `services/vision-api/docs/handoff.md`.
+- Supabase: esquema/RLS/triggers en rama `feat/auth-chat-supabase` (Rol 2).
+- App móvil: aún no inicializada.
 
 ## Integraciones pendientes
 
-- Aplicación móvil no inicializada (Expo) — coordinación entre Persona 1 y Persona 2.
-- Vision API no inicializada (FastAPI / Railway).
-- Supabase project en la nube pendiente de crear y aplicar migraciones.
+- Aplicación móvil no inicializada (Expo).
+- Conectar el cliente móvil a la Vision API (`EXPO_PUBLIC_VISION_API_URL`).
+- Mergear `feat/auth-chat-supabase` y `feature/vision-api` a `main`.
 - APK inexistente.
 
 ## Próximo checkpoint
