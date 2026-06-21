@@ -40,9 +40,8 @@ const INITIAL_FIELDS: FormFields = {
  * Estado y validación del formulario de creación de reporte.
  *
  * La UBICACIÓN no se gestiona aquí (regla "sólo GPS actual"): se inyecta al
- * enviar. En la fase mock viene de `getMockCurrentLocation()`; luego de
- * `getCurrentReportLocation()` (Rol 1). El envío pasa por `reportService`
- * (mock hoy, Supabase después).
+ * enviar. Proviene de `getCurrentReportLocation()` (Rol 1, GPS actual). El
+ * envío pasa por `reportService` (mock hoy, Supabase después).
  */
 export function useCreateReportForm() {
   const [fields, setFields] = useState<FormFields>(INITIAL_FIELDS);

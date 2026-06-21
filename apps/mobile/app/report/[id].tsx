@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Badge } from '../../src/components/ui/Badge';
+import { Button } from '../../src/components/ui/Button';
 import { Card } from '../../src/components/ui/Card';
 import { ScreenContainer } from '../../src/components/ui/ScreenContainer';
 import { StatusBanner } from '../../src/components/ui/StatusBanner';
@@ -27,6 +28,7 @@ type LoadState = 'loading' | 'success' | 'error';
  */
 export default function ReportDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const [report, setReport] = useState<Report | null>(null);
   const [state, setState] = useState<LoadState>('loading');
 
@@ -96,9 +98,14 @@ export default function ReportDetailScreen() {
 
       <LocationCard location={report.location} />
 
+      <Button
+        label="Coordinar rescate"
+        onPress={() => router.push(`/report/${report.id}/tracking`)}
+      />
+
       <StatusBanner
         tone="info"
-        message="Línea de tiempo, coincidencias, chat y seguimiento se integran en fases posteriores."
+        message="Línea de tiempo, coincidencias y chat se integran en fases posteriores."
       />
     </ScreenContainer>
   );

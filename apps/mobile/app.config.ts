@@ -38,15 +38,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
-    // Mapbox nativo (Rol 1). El token de DESCARGA es secreto y sólo se
-    // inyecta en build vía la variable de entorno RNMAPBOX_MAPS_DOWNLOAD_TOKEN
-    // (EAS secret / .env local). NUNCA se hardcodea ni se versiona.
-    [
-      '@rnmapbox/maps',
-      {
-        RNMapboxMapsDownloadToken: process.env.RNMAPBOX_MAPS_DOWNLOAD_TOKEN ?? '',
-      },
-    ],
+    // Mapbox nativo (Rol 1). El plugin lee el token de DESCARGA (secreto)
+    // directamente de la variable de entorno RNMAPBOX_MAPS_DOWNLOAD_TOKEN
+    // (EAS secret / .env local) en build. NUNCA se hardcodea ni se versiona.
+    // (El prop `RNMapboxMapsDownloadToken` está deprecado en favor del env var.)
+    '@rnmapbox/maps',
     // Ubicación + tracking en segundo plano con foreground service (Rol 1).
     [
       'expo-location',
