@@ -1,0 +1,8 @@
+# Dependencias sólo de desarrollo/test (NO necesarias en la imagen de Railway).
+-r requirements.txt
+
+pytest==8.3.4
+
+# Para scripts/integration_local.py (carga .env). python-dotenv ya viene como
+# dependencia transitiva de pydantic-settings; lo fijamos para reproducibilidad.
+python-dotenv==1.2.2
