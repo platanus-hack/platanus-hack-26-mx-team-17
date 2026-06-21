@@ -214,20 +214,9 @@ class SupabaseRepository:
         return _row_to_report(rows[0]) if rows else None
 
     def user_can_process(self, user_id: str, report: ReportRow) -> bool:
-        if report.author_id == user_id:
-            return True
-        # ¿Es miembro del caso?
-        resp = self._client.get(
-            self._rest_url("case_members"),
-            params={
-                "report_id": f"eq.{report.id}",
-                "user_id": f"eq.{user_id}",
-                "select": "id",
-                "limit": 1,
-            },
-        )
-        resp.raise_for_status()
-        return bool(resp.json())
+        # Cualquier usuario autenticado puede disparar el procesamiento de IA
+        # en un reporte público. La autenticación ya fue verificada por el JWT.
+        return True
 
     def get_primary_image_bytes(self, report_id: str) -> bytes | None:
         resp = self._client.get(
