@@ -213,12 +213,12 @@ export const reportService: ReportService = {
 };
 
 export const storageService: StorageService = {
-  async getReportImageUrl(storagePath: string): Promise<string> {
-    const { data, error } = await supabase.storage
-      .from('report-images')
-      .createSignedUrl(storagePath, 3600);
-    if (error) throw mapSupabaseError(error);
-    return data.signedUrl;
+  getReportImageUrl(storagePath: string): Promise<string> {
+    // Bucket report-images debe estar marcado como Public en Supabase dashboard.
+    // getPublicUrl no requiere autenticación ni permisos RLS en Storage,
+    // lo que permite que invitados vean imágenes de reportes públicos.
+    const { data } = supabase.storage.from('report-images').getPublicUrl(storagePath);
+    return Promise.resolve(data.publicUrl);
   },
 
   async getPrimaryImage(reportId: string): Promise<ReportImage | null> {
