@@ -25,6 +25,8 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: 'Huella SOS' }} />
         <Stack.Screen name="report/new" options={{ title: 'Nuevo reporte' }} />
         <Stack.Screen name="report/[id]" options={{ title: 'Detalle del caso' }} />
+        {/* TEMPORAL (Rol 1): verificación de Mapbox en el dev build. Quitar al integrar el mapa en la home. */}
+        <Stack.Screen name="map-demo" options={{ title: 'Demo de mapa' }} />
       </Stack>
     </SafeAreaProvider>
   );

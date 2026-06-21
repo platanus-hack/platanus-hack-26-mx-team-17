@@ -37,6 +37,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     typedRoutes: true,
   },
   extra: {
+    // ID del proyecto en EAS (cuenta Expo del equipo). Necesario para `eas build`.
+    // No es secreto: identifica el proyecto, no da acceso. Puede vivir en el repo.
+    eas: {
+      projectId: '5fc9592e-3966-4c4e-a502-94f54e8d5605',
+    },
     // Espejo de las variables públicas permitidas en el cliente.
     // Se leen de process.env.EXPO_PUBLIC_* en build (vacías hasta configurar EAS/.env).
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',

@@ -29,7 +29,7 @@ Ninguno. No existe APK todavía.
 ## Bloqueos
 
 - Credenciales externas pendientes (Supabase, Mapbox, Google OAuth, proveedor SMS, Railway).
-- **Node local por debajo del mínimo de SDK 56**: se requiere Node ≥20.19.4 (o ≥22.13) para `expo start`/EAS. El equipo debe `nvm install 20.19.4`. El bundle compiló en 20.12.2 pero con aviso de versión no soportada.
+- **Node local por debajo del mínimo de SDK 56**: se requiere Node ≥20.19.4 (o ≥22.13) para `expo start`/EAS. El equipo debe `nvm install 22.22.2`. El bundle compiló en 20.12.2 pero con aviso de versión no soportada.
 
 ## Servicios desplegados
 
