@@ -101,6 +101,17 @@ export const matchService = {
     } = await supabase.auth.getSession();
     if (!session?.access_token) throw new MatchError('UNAUTHENTICATED', 'Sesión expirada, vuelve a iniciar sesión');
 
+    // DEBUG TEMPORAL — decodifica claims del JWT sin verificar firma
+    try {
+      const parts = session.access_token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        const expDate = payload.exp ? new Date(payload.exp * 1000).toISOString() : 'N/A';
+        const nowDate = new Date().toISOString();
+        console.warn('[JWT-DEBUG] aud:', payload.aud, '| role:', payload.role, '| exp:', expDate, '| now:', nowDate, '| sub:', payload.sub?.slice(0, 8));
+      }
+    } catch { /* no bloquea */ }
+
     const visionUrl = process.env.EXPO_PUBLIC_VISION_API_URL;
     if (!visionUrl) throw new MatchError('NETWORK', 'Vision API URL no configurada en .env');
 
@@ -116,7 +127,7 @@ export const matchService = {
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '');
       if (response.status === 401) {
-        throw new MatchError('UNAUTHENTICATED', `API rechazó el JWT (401) — verifica SUPABASE_JWT_SECRET en Railway. Respuesta: ${bodyText.slice(0, 120)}`);
+        throw new MatchError('UNAUTHENTICATED', `API rechazó el JWT (401). Respuesta: ${bodyText.slice(0, 200)}`);
       }
       const body = (() => { try { return JSON.parse(bodyText); } catch { return {}; } })() as { error?: { code?: string } };
       const code = body?.error?.code ?? '';
